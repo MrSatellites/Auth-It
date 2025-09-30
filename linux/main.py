@@ -9,12 +9,11 @@ from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
-AUTH_SERVICE_UUID = "fff0"
+AUTH_SERVICE_UUID = "fff0" # will be dynamic in future versions
 PASSWORD_ENV_FILE = ".env"
-PASSWORD_KEY = "PASSWORD"
-RSSI_THRESHOLD = -87
-HASH_PADDING_LENGTH = 128
-PREDICTION_LENGTH = 20
+RSSI_THRESHOLD = -87 # Approximately 
+HASH_PADDING_LENGTH = 128 
+PREDICTION_LENGTH = 20 # Can go up to 26 (because ble size) but i got issues with some android devices
 SCAN_TIMEOUT_SECONDS = 10.0
 
 
@@ -32,7 +31,7 @@ class AuthClient:
         if os.path.exists(env_path):
             with open(env_path, "r") as f:
                 for line in f:
-                    if line.startswith(f"{PASSWORD_KEY}="):
+                    if line.startswith(f"HASH="):
                         password = line.strip().split("=", 1)[1]
                         if not password:
                             print("[Error] Password in .env file cannot be empty.")
@@ -47,7 +46,7 @@ class AuthClient:
 
         hashed_password = hashlib.sha512(password_input.encode()).hexdigest()
         with open(env_path, "w") as f:
-            f.write(f"{PASSWORD_KEY}={hashed_password}\n")
+            f.write(f"HASH={hashed_password}\n")
         return hashed_password
 
     def _detection_callback(self, _: BLEDevice, adv: AdvertisementData) -> None:
