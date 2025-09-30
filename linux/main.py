@@ -11,7 +11,7 @@ from bleak.backends.scanner import AdvertisementData
 
 AUTH_SERVICE_UUID = "fff0" # will be dynamic in future versions
 PASSWORD_ENV_FILE = ".env"
-RSSI_THRESHOLD = -87 # Approximately 
+RSSI_THRESHOLD = -87 # low threshold for rssi to consider device "close enough"
 HASH_PADDING_LENGTH = 128 
 PREDICTION_LENGTH = 20 # Can go up to 26 (because ble size) but i got issues with some android devices
 SCAN_TIMEOUT_SECONDS = 10.0
