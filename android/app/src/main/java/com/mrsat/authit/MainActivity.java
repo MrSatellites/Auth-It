@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+            
             if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - lastoffscreen < 1000) { 
@@ -88,19 +89,36 @@ public class MainActivity extends AppCompatActivity {
                     update_notif("Phone locked", "unlock the phone to unlock your computer :)");
                 }
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
-                if (wasRunningBeforeLock) {
-                    wasRunningBeforeLock = false;
+                handleScreenUnlock(context);
+            } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
+            }
+        }
+        
+        private void handleScreenUnlock(Context context) {
+            if (wasRunningBeforeLock) {
+                wasRunningBeforeLock = false;
+                
+                handler.postDelayed(() -> {
                     if (isRunning && bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-                        start_adv_tasks();
-                         if (currentHash != null && !currentHash.isEmpty()) {
-                            String pref_hash = currentHash.substring(0, Math.min(20, currentHash.length()));
-                            update_notif("Broadcasting hash: " + pref_hash, pref_hash);
+                        if (advertiser == null) {
+                            advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+                        }
+                        
+                        if (advertiser != null) {
+                            start_adv_tasks();
+                            if (currentHash != null && !currentHash.isEmpty()) {
+                                String pref_hash = currentHash.substring(0, Math.min(20, currentHash.length()));
+                                update_notif("Broadcasting hash: " + pref_hash, pref_hash);
+                            }
+                        } else {
+                            stop(); 
+                            notify_user("Could not resume broadcast. BLE Advertiser not available.");
                         }
                     } else if (isRunning) {
                         stop(); 
                         notify_user("Could not resume broadcast. Please check Bluetooth and press Start.");
                     }
-                }
+                }, 500);
             }
         }
     };
@@ -135,9 +153,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-        filter.addAction(Intent.ACTION_USER_PRESENT);
-        registerReceiver(screenStateReceiver, filter);
+        registerScreenStateReceiver();
     }
 
     private void check_req_perms() {
@@ -405,10 +421,47 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean isReceiverRegistered = false;
+
+    private void registerScreenStateReceiver() {
+        if (!isReceiverRegistered) {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_SCREEN_OFF);
+            filter.addAction(Intent.ACTION_USER_PRESENT);
+            filter.addAction(Intent.ACTION_SCREEN_ON);
+            filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
+            registerReceiver(screenStateReceiver, filter);
+            isReceiverRegistered = true;
+        }
+    }
+
+    private void unregisterScreenStateReceiver() {
+        if (isReceiverRegistered) {
+            try {
+                unregisterReceiver(screenStateReceiver);
+                isReceiverRegistered = false;
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        registerScreenStateReceiver();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Don't unregister here - we want to keep listening for screen events
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(screenStateReceiver);
+        unregisterScreenStateReceiver();
         if (isRunning) { 
             stop();
         } else if (notificationManager != null) {
