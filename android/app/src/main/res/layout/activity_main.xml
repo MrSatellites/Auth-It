@@ -1,43 +1,179 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp" 
+    android:background="@drawable/gradient_background"
     tools:context=".MainActivity">
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/passwordInputLayout"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/appLogo"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginTop="60dp"
+        android:src="@drawable/ic_shield_clean"
+        android:contentDescription="Auth-It Logo"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:tint="@color/accent_blue" />
+    <TextView
+        android:id="@+id/appTitle"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:hint="Password (optional)"
-        app:startIconDrawable="@android:drawable/ic_lock_lock" 
-        app:endIconMode="password_toggle">
+        android:layout_marginTop="16dp"
+        android:text="Auth-It"
+        android:textAppearance="@style/TextAppearance.AuthIt.Headline1"
+        android:textSize="32sp"
+        app:layout_constraintTop_toBottomOf="@id/appLogo"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <TextView
+        android:id="@+id/appSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Secure Bluetooth Authentication"
+        android:textAppearance="@style/TextAppearance.AuthIt.Body1"
+        android:textSize="16sp"
+        android:alpha="0.8"
+        app:layout_constraintTop_toBottomOf="@id/appTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/mainCard"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="40dp"
+        app:cardBackgroundColor="@color/surface_dark"
+        app:cardCornerRadius="32dp"
+        app:cardElevation="12dp"
+        app:strokeColor="#33FFFFFF"
+        app:strokeWidth="1dp"
+        android:translationZ="4dp"
+        app:layout_constraintTop_toBottomOf="@id/appSubtitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/passwordEditText"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPassword"
-            android:maxLines="1" />
+            android:orientation="vertical"
+            android:padding="24dp">
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/passwordInputLayout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Password"
+                app:startIconDrawable="@drawable/ic_key_clean"
+                app:startIconTint="@color/accent_blue"
+                app:endIconMode="password_toggle"
+                app:endIconTint="@color/accent_blue"
+                app:boxStrokeColor="@color/accent_blue"
+                app:hintTextColor="@color/on_surface_variant"
+                app:boxCornerRadiusTopStart="20dp"
+                app:boxCornerRadiusTopEnd="20dp"
+                app:boxCornerRadiusBottomStart="20dp"
+                app:boxCornerRadiusBottomEnd="20dp"
+                app:boxStrokeWidth="2dp"
+                app:boxStrokeWidthFocused="3dp">
 
-    </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/passwordEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:textColor="@color/on_surface"
+                    android:textColorHint="@color/on_surface_variant" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/startButton"
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startButton"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:layout_marginTop="32dp"
+                android:text="Start Broadcasting"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_gradient"
+                app:backgroundTint="@null"
+                app:cornerRadius="32dp"
+                app:icon="@drawable/ic_arrow_right"
+                app:iconGravity="textStart"
+                app:iconSize="20dp"
+                app:iconTint="@color/white"
+                app:rippleColor="#33FFFFFF"
+                android:textColor="@color/white"
+                android:elevation="6dp"
+                android:letterSpacing="0.02" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/statusContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="Start"
-        android:paddingLeft="32dp"
-        android:paddingRight="32dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        app:icon="@android:drawable/ic_media_play" 
-        app:iconGravity="textStart"/>
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/surface_variant"
+        app:cardCornerRadius="25dp"
+        app:cardElevation="4dp"
+        app:strokeColor="#33FFFFFF"
+        app:strokeWidth="0.5dp"
+        app:layout_constraintTop_toBottomOf="@id/mainCard"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-</LinearLayout>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <View
+                android:id="@+id/statusIndicator"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/status_indicator"
+                android:backgroundTint="@color/success" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Broadcasting Active"
+                android:textAppearance="@style/TextAppearance.AuthIt.Body1"
+                android:textSize="13sp"
+                android:textColor="@color/on_surface"
+                android:fontFamily="sans-serif-medium" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:id="@+id/footerText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:text="Secure • Private • Fast"
+        android:textAppearance="@style/TextAppearance.AuthIt.Body1"
+        android:textSize="12sp"
+        android:alpha="0.6"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

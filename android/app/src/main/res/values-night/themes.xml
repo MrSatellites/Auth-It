@@ -1,21 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.AuthIt" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color -->
         <item name="colorPrimary">@color/accent_blue</item>
         <item name="colorPrimaryVariant">@color/accent_blue_variant</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="colorPrimaryContainer">@color/surface_variant</item>
         <item name="colorOnPrimaryContainer">@color/on_surface</item>
-
-        <!-- Secondary brand color -->
         <item name="colorSecondary">@color/accent_green</item>
         <item name="colorSecondaryVariant">@color/accent_blue_variant</item>
         <item name="colorOnSecondary">@color/white</item>
         <item name="colorSecondaryContainer">@color/surface_variant</item>
         <item name="colorOnSecondaryContainer">@color/on_surface</item>
-
-        <!-- Background and surface colors -->
         <item name="android:colorBackground">@color/primary_dark</item>
         <item name="colorSurface">@color/surface_dark</item>
         <item name="colorSurfaceVariant">@color/surface_variant</item>
@@ -23,48 +18,16 @@
         <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
         <item name="colorOutline">#404040</item>
         <item name="colorOutlineVariant">#2A2A2A</item>
-
-        <!-- Status bar and navigation -->
         <item name="android:statusBarColor">@color/primary_dark</item>
         <item name="android:navigationBarColor">@color/primary_dark</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
-
-        <!-- Typography -->
         <item name="android:textColor">@color/on_surface</item>
         <item name="android:fontFamily">sans-serif</item>
         <item name="textAppearanceHeadline1">@style/TextAppearance.AuthIt.Headline1</item>
         <item name="textAppearanceHeadline6">@style/TextAppearance.AuthIt.Headline6</item>
         <item name="textAppearanceBody1">@style/TextAppearance.AuthIt.Body1</item>
-        
-        <!-- Material 3 shape system -->
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.AuthIt.SmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.AuthIt.MediumComponent</item>
-    </style>
-    
-    <!-- Custom Text Styles -->
-    <style name="TextAppearance.AuthIt.Headline1" parent="TextAppearance.Material3.HeadlineLarge">
-        <item name="android:fontFamily">sans-serif-thin</item>
-        <item name="android:textColor">@color/on_surface</item>
-        <item name="android:letterSpacing">-0.02</item>
-    </style>
-    
-    <style name="TextAppearance.AuthIt.Headline6" parent="TextAppearance.Material3.HeadlineSmall">
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textColor">@color/on_surface</item>
-    </style>
-    
-    <style name="TextAppearance.AuthIt.Body1" parent="TextAppearance.Material3.BodyLarge">
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textColor">@color/on_surface_variant</item>
-    </style>
-    
-    <!-- Custom Shape Styles -->
-    <style name="ShapeAppearance.AuthIt.SmallComponent" parent="ShapeAppearance.Material3.Corner.Small">
-        <item name="cornerSize">12dp</item>
-    </style>
-    
-    <style name="ShapeAppearance.AuthIt.MediumComponent" parent="ShapeAppearance.Material3.Corner.Medium">
-        <item name="cornerSize">16dp</item>
     </style>
 </resources>

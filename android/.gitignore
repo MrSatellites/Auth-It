@@ -15,3 +15,12 @@ gradle.properties
 .externalNativeBuild
 .cxx
 local.properties
+gradle/
+.gradle/
+gradlew
+gradlew.bat
+settings.gradle
+app/build/
+.idea/
+app/release/
+app/debug/

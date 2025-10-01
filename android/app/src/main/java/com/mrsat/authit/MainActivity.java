@@ -21,7 +21,13 @@ import android.os.Handler;
 import android.os.ParcelUuid;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.view.View;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -50,7 +56,10 @@ public class MainActivity extends AppCompatActivity {
     private NotificationManager notificationManager;
 
     private EditText passwordInput;
-    private Button startBtn;
+    private MaterialButton startBtn;
+    private MaterialCardView statusContainer;
+    private TextView statusText;
+    private View statusIndicator;
     private boolean isRunning = false;
     private Handler handler = new Handler();
     private String currentHash;
@@ -86,6 +95,10 @@ public class MainActivity extends AppCompatActivity {
                 if (isRunning) {
                     wasRunningBeforeLock = true;
                     stop_adv_tasks();
+                    runOnUiThread(() -> {
+                        statusText.setText("Phone Locked");
+                        statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
+                    });
                     update_notif("Phone locked", "unlock the phone to unlock your computer :)");
                 }
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
@@ -106,6 +119,10 @@ public class MainActivity extends AppCompatActivity {
                         
                         if (advertiser != null) {
                             start_adv_tasks();
+                            runOnUiThread(() -> {
+                                statusText.setText("Broadcasting Active");
+                                statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
+                            });
                             if (currentHash != null && !currentHash.isEmpty()) {
                                 String pref_hash = currentHash.substring(0, Math.min(20, currentHash.length()));
                                 update_notif("Broadcasting hash: " + pref_hash, pref_hash);
@@ -130,6 +147,9 @@ public class MainActivity extends AppCompatActivity {
 
         passwordInput = findViewById(R.id.passwordEditText);
         startBtn = findViewById(R.id.startButton);
+        statusContainer = findViewById(R.id.statusContainer);
+        statusText = findViewById(R.id.statusText);
+        statusIndicator = findViewById(R.id.statusIndicator);
 
         BluetoothManager mgr = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         if (mgr != null) {
@@ -202,6 +222,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void updateUI() {
+        runOnUiThread(() -> {
+            if (isRunning) {
+                startBtn.setText("Stop Broadcasting");
+                startBtn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_stop_simple));
+                startBtn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient_stop));
+                statusContainer.setVisibility(View.VISIBLE);
+                statusText.setText("Broadcasting Active");
+                statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.success));
+            } else {
+                startBtn.setText("Start Broadcasting");
+                startBtn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_arrow_right));
+                startBtn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient));
+                statusContainer.setVisibility(View.GONE);
+            }
+        });
+    }
+
     void notify_user(String message) {
         runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show());
     }
@@ -239,12 +277,13 @@ public class MainActivity extends AppCompatActivity {
 
         password = passwordInput.getText().toString();
         if (password.isEmpty()) {
-            password = "ADBC";
+            notify_user("Please enter a password.");
+            return;
         }
 
         isRunning = true;
         wasRunningBeforeLock = false;
-        startBtn.setText("Stop");
+        updateUI();
         int randomIterations = new Random().nextInt(10000) + 10;
         currentHash = password;
         for (int i = 0; i < randomIterations; i++) {
@@ -261,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
     void stop() {
         isRunning = false;
         wasRunningBeforeLock = false;
-        startBtn.setText("Start");
+        updateUI();
         stop_adv_tasks();
 
         if (notificationManager != null) {
