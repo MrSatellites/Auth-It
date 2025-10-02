@@ -351,7 +351,7 @@ public class MainActivity extends AppCompatActivity {
     void roll_hash() {
         if (!isRunning) return;
 
-        String hashPrefixOld = currentHash.substring(0, 20);
+        String hashPrefixOld = currentHash.substring(0, Math.min(20, currentHash.length()));
         String padding = "";
         for (int i = 0; i < 108; i++)
             padding += "0";
@@ -388,16 +388,23 @@ public class MainActivity extends AppCompatActivity {
             ParcelUuid uuid = ParcelUuid.fromString("0000FFF0-0000-1000-8000-00805F9B34FB");
             AdvertiseSettings settings = new AdvertiseSettings.Builder()
                     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY) 
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW) // i reduced power for better battery life and proximity detection
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_ULTRA_LOW) // ultra low to save space and battery
                     .setConnectable(false)
+                    .setTimeout(0)
                     .build();
             AdvertiseData data = new AdvertiseData.Builder()
                     .addServiceData(uuid, hashBytes)
+                    .setIncludeDeviceName(false) // exclude device name
+                    .setIncludeTxPowerLevel(false) // exclude TX power level
+                    .build();
+            
+            AdvertiseData scanResponse = new AdvertiseData.Builder()
                     .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
                     .build();
 
             advertiser.stopAdvertising(callback); 
-            advertiser.startAdvertising(settings, data, callback);
+            advertiser.startAdvertising(settings, data, scanResponse, callback);
 
         } catch (Exception e) {
             notify_user("Broadcast error: " + e.getMessage());

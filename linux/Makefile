@@ -41,11 +41,11 @@ install: all
 
 	# Install the Python script
 	@echo "Installing Python script to $(SCRIPT_INSTALL_DIR)/"
-	install -m 755 "$(PYTHON_SCRIPT)" "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/"
-	@if [ -f .env ]; then \
-		echo "Moving .env file to $(SCRIPT_INSTALL_DIR)/"; \
-		install -m 644 .env "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/"; \
+	@if [ -f "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/$(PYTHON_SCRIPT)" ]; then \
+		echo "Removing immutable attribute from existing script..."; \
+		chattr -i "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/$(PYTHON_SCRIPT)"; \
 	fi
+	install -m 755 "$(PYTHON_SCRIPT)" "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/"
 
 	@echo "Setting immutable attribute on installed script..."
 	chattr +i "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/$(PYTHON_SCRIPT)"
@@ -53,8 +53,7 @@ install: all
 	@echo ""
 	@echo "Installation complete."
 	@echo "Add 'auth sufficient $(MODULE_NAME).so' to your PAM configuration."
-	@echo "Python interpreter: /bin/python3"
-
+	
 uninstall:
 	@echo "Uninstalling..."
 	@if [ -f "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/$(PYTHON_SCRIPT)" ]; then \
@@ -64,12 +63,28 @@ uninstall:
 	@echo "Removing installed files..."
 	rm -f "$(DESTDIR)$(PAM_MODULE_DIR)/$(MODULE_NAME).so"
 	rm -rf "$(DESTDIR)$(SCRIPT_INSTALL_DIR)"
-	@if [ -f "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/.env" ]; then \
-		echo "Removing .env file..."; \
-		rm -f "$(DESTDIR)$(SCRIPT_INSTALL_DIR)/.env"; \
+	@echo "Cleaning user configuration files..."
+	@if [ -n "$$SUDO_USER" ]; then \
+		USER_HOME=$$(eval echo ~$$SUDO_USER); \
+		if [ -d "$$USER_HOME/.config/authit" ]; then \
+			echo "Removing user config directory..."; \
+			rm -rf "$$USER_HOME/.config/authit"; \
+		fi; \
+	elif [ -d "$$HOME/.config/authit" ]; then \
+		echo "Removing user config directory..."; \
+		rm -rf "$$HOME/.config/authit"; \
 	fi
 	@echo "PAM Auth-It module uninstalled."
 
 clean:
 	@echo "Cleaning build directory..."
 	@rm -rf $(BUILD_DIR)
+
+clean-config:
+	@echo "Cleaning user configuration files..."
+	@if [ -d "$$HOME/.config/authit" ]; then \
+		echo "Removing user config directory..."; \
+		rm -rf "$$HOME/.config/authit"; \
+	fi
+	@echo "User configuration files cleaned."
+
