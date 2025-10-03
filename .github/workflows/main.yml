@@ -20,7 +20,7 @@ jobs:
           java-version: 1.8
       - name: Run Tests
         working-directory: ./android
-        run: bash ./gradlew test --stacktrace
+        run: bash ./android/gradlew test --stacktrace
   apk:
     name: Generate APK
     needs: test
@@ -34,7 +34,7 @@ jobs:
           java-version: 1.8
       - name: Build APK
         working-directory: ./android
-        run: bash ./gradlew assembleDebug --stacktrace
+        run: bash ./android/gradlew assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v1
         with:
@@ -66,5 +66,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: app-debug.apk
-          asset_name: MensaApp.apk
+          asset_name: Auth-It.apk
           asset_content_type: application/vnd.android.package-archive
