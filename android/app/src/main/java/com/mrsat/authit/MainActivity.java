@@ -14,6 +14,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -52,21 +53,27 @@ public class MainActivity extends AppCompatActivity {
     private static final int NOTIFICATION_ID = 1;
 
     private BluetoothLeAdvertiser advertiser;
-    private BluetoothAdapter bluetoothAdapter;
-    private NotificationManager notificationManager;
+    private BluetoothAdapter bluetooth_adapter;
+    private NotificationManager notification_manager;
 
-    private EditText passwordInput;
-    private MaterialButton startBtn;
-    private MaterialCardView statusContainer;
-    private TextView statusText;
-    private View statusIndicator;
-    private boolean isRunning = false;
+    private EditText password_input;
+    private MaterialButton start_btn;
+    private MaterialButton clear_password_btn;
+    private MaterialCardView status_container;
+    private com.google.android.material.textfield.TextInputLayout password_input_layout;
+    
+    private static final String PREFS_NAME = "AuthItPrefs";
+    private static final String SAVED_PASSWORD_HASH = "saved_password_hash";
+    private SharedPreferences shared_prefs;
+    private TextView status_text;
+    private View status_indicator;
+    private boolean is_running = false;
     private Handler handler = new Handler();
-    private String currentHash;
+    private String current_hash;
     private String password;
-    private boolean wasRunningBeforeLock = false;
+    private boolean was_running_before_lock = false;
 
-    private long lastoffscreen = 0;
+    private long last_offscreen = 0;
     private AdvertiseCallback callback = new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -80,58 +87,58 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver screen_state_receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             
             if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - lastoffscreen < 1000) { 
+                if (currentTime - last_offscreen < 1000) { 
                     return;
                 }
-                lastoffscreen = currentTime;
+                last_offscreen = currentTime;
 
-                if (isRunning) {
-                    wasRunningBeforeLock = true;
+                if (is_running) {
+                    was_running_before_lock = true;
                     stop_adv_tasks();
                     runOnUiThread(() -> {
-                        statusText.setText("Phone Locked");
-                        statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
+                        status_text.setText("Phone Locked");
+                        status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
                     });
                     update_notif("Phone locked", "unlock the phone to unlock your computer :)");
                 }
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
-                handleScreenUnlock(context);
+                handle_screen_unlock(context);
             } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
             }
         }
         
-        private void handleScreenUnlock(Context context) {
-            if (wasRunningBeforeLock) {
-                wasRunningBeforeLock = false;
+        private void handle_screen_unlock(Context context) {
+            if (was_running_before_lock) {
+                was_running_before_lock = false;
                 
                 handler.postDelayed(() -> {
-                    if (isRunning && bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
+                    if (is_running && bluetooth_adapter != null && bluetooth_adapter.isEnabled()) {
                         if (advertiser == null) {
-                            advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+                            advertiser = bluetooth_adapter.getBluetoothLeAdvertiser();
                         }
                         
                         if (advertiser != null) {
                             start_adv_tasks();
                             runOnUiThread(() -> {
-                                statusText.setText("Broadcasting Active");
-                                statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
+                                status_text.setText("Broadcasting Active");
+                                status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
                             });
-                            if (currentHash != null && !currentHash.isEmpty()) {
-                                String pref_hash = currentHash.substring(0, Math.min(20, currentHash.length()));
+                            if (current_hash != null && !current_hash.isEmpty()) {
+                                String pref_hash = current_hash.substring(0, Math.min(20, current_hash.length()));
                                 update_notif("Broadcasting hash: " + pref_hash, pref_hash);
                             }
                         } else {
                             stop(); 
                             notify_user("Could not resume broadcast. BLE Advertiser not available.");
                         }
-                    } else if (isRunning) {
+                    } else if (is_running) {
                         stop(); 
                         notify_user("Could not resume broadcast. Please check Bluetooth and press Start.");
                     }
@@ -145,35 +152,42 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        passwordInput = findViewById(R.id.passwordEditText);
-        startBtn = findViewById(R.id.startButton);
-        statusContainer = findViewById(R.id.statusContainer);
-        statusText = findViewById(R.id.statusText);
-        statusIndicator = findViewById(R.id.statusIndicator);
+        password_input = findViewById(R.id.passwordEditText);
+        password_input_layout = findViewById(R.id.passwordInputLayout);
+        start_btn = findViewById(R.id.startButton);
+        clear_password_btn = findViewById(R.id.clearPasswordButton);
+        status_container = findViewById(R.id.statusContainer);
+        status_text = findViewById(R.id.statusText);
+        status_indicator = findViewById(R.id.statusIndicator);
+        
+        shared_prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        setup_password_ui();
 
         BluetoothManager mgr = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         if (mgr != null) {
-            bluetoothAdapter = mgr.getAdapter();
+            bluetooth_adapter = mgr.getAdapter();
         } else {
             notify_user("Bluetooth Manager not available.");
             finish();
             return;
         }
         
-        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        notification_manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         create_notif_channel();
 
         check_req_perms();
 
-        startBtn.setOnClickListener(v -> {
-            if (isRunning) {
+        start_btn.setOnClickListener(v -> {
+            if (is_running) {
                 stop();
             } else {
                 start();
             }
         });
+        
+        clear_password_btn.setOnClickListener(v -> clear_saved_password());
 
-        registerScreenStateReceiver();
+        register_screen_state_receiver();
     }
 
     private void check_req_perms() {
@@ -210,8 +224,8 @@ public class MainActivity extends AppCompatActivity {
             }
             if (allGranted) {
                 notify_user("Permissions granted.");
-                if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-                     advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+                if (bluetooth_adapter != null && bluetooth_adapter.isEnabled()) {
+                     advertiser = bluetooth_adapter.getBluetoothLeAdvertiser();
                      if (advertiser == null) {
                         notify_user("BLE Advertising not supported on this device after permission grant.");
                      }
@@ -222,20 +236,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void updateUI() {
+    private void update_ui() {
         runOnUiThread(() -> {
-            if (isRunning) {
-                startBtn.setText("Stop Broadcasting");
-                startBtn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_stop_simple));
-                startBtn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient_stop));
-                statusContainer.setVisibility(View.VISIBLE);
-                statusText.setText("Broadcasting Active");
-                statusIndicator.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.success));
+            if (is_running) {
+                start_btn.setText("Stop Broadcasting");
+                start_btn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_stop_simple));
+                start_btn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient_stop));
+                status_container.setVisibility(View.VISIBLE);
+                status_text.setText("Broadcasting Active");
+                status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.success));
             } else {
-                startBtn.setText("Start Broadcasting");
-                startBtn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_arrow_right));
-                startBtn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient));
-                statusContainer.setVisibility(View.GONE);
+                start_btn.setText("Start Broadcasting");
+                start_btn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_arrow_right));
+                start_btn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient));
+                status_container.setVisibility(View.GONE);
             }
         });
     }
@@ -245,11 +259,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void start() {
-        if (bluetoothAdapter == null) {
+        if (bluetooth_adapter == null) {
             notify_user("Bluetooth adapter not available.");
             return;
         }
-        if (!bluetoothAdapter.isEnabled()) {
+        if (!bluetooth_adapter.isEnabled()) {
             notify_user("Bluetooth is not enabled. Requesting to enable...");
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
@@ -266,8 +280,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (advertiser == null) {
-            if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-                advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+            if (bluetooth_adapter != null && bluetooth_adapter.isEnabled()) {
+                advertiser = bluetooth_adapter.getBluetoothLeAdvertiser();
             }
             if (advertiser == null) {
                 notify_user("Bluetooth LE Advertiser not available. Device may not support BLE advertising.");
@@ -275,42 +289,58 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        password = passwordInput.getText().toString();
-        if (password.isEmpty()) {
-            notify_user("Please enter a password.");
-            return;
+        String saved_hash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
+        
+        if (saved_hash != null && !saved_hash.isEmpty()) {
+            password = saved_hash;
+        } else {
+            String inputPassword = password_input.getText().toString();
+            if (inputPassword.isEmpty()) {
+                notify_user("Please enter a password.");
+                return;
+            }
+            password = inputPassword;
+            String passwordHash = sha512(password);
+            shared_prefs.edit().putString(SAVED_PASSWORD_HASH, passwordHash).apply();
+            setup_password_ui();
         }
 
-        isRunning = true;
-        wasRunningBeforeLock = false;
-        updateUI();
+        is_running = true;
+        was_running_before_lock = false;
+        update_ui();
         int randomIterations = new Random().nextInt(10000) + 10;
-        currentHash = password;
+        
+        if (saved_hash != null && password.equals(saved_hash)) {
+            current_hash = password;
+        } else {
+            current_hash = sha512(password);
+        }
+        
         for (int i = 0; i < randomIterations; i++) {
-            currentHash = sha512(currentHash);
+            current_hash = sha512(current_hash);
         }
 
         start_adv_tasks();
 
-        String hashPrefix = currentHash.substring(0, Math.min(20, currentHash.length()));
+        String hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
         notify_user("AuthIt Started.");
         update_notif("Broadcasting : " + hashPrefix, hashPrefix);
     }
 
     void stop() {
-        isRunning = false;
-        wasRunningBeforeLock = false;
-        updateUI();
+        is_running = false;
+        was_running_before_lock = false;
+        update_ui();
         stop_adv_tasks();
 
-        if (notificationManager != null) {
-            notificationManager.cancel(NOTIFICATION_ID);
+        if (notification_manager != null) {
+            notification_manager.cancel(NOTIFICATION_ID);
         }
         notify_user("AuthIt stopped.");
     }
     
     private void start_adv_tasks() {
-        if (!isRunning) return; 
+        if (!is_running) return; 
         if (advertiser == null) {
             notify_user("Cannot start advertising tasks: Advertiser not initialized.");
             return;
@@ -349,31 +379,32 @@ public class MainActivity extends AppCompatActivity {
 
 
     void roll_hash() {
-        if (!isRunning) return;
+        if (!is_running) return;
 
-        String hashPrefixOld = currentHash.substring(0, Math.min(20, currentHash.length()));
+        String hashPrefixOld = current_hash.substring(0, Math.min(20, current_hash.length()));
         String padding = "";
         for (int i = 0; i < 108; i++)
             padding += "0";
 
         String currentDate = ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-        String hashedPassword = sha512(password);
-        String input_next = hashPrefixOld + padding + hashedPassword + currentDate;
-        currentHash = sha512(input_next);
 
-        if (currentHash.isEmpty()) {
+        String hashedPassword = password;
+        String input_next = hashPrefixOld + padding + hashedPassword + currentDate;
+        current_hash = sha512(input_next);
+
+        if (current_hash.isEmpty()) {
             stop();
             notify_user("Error: Hash generation failed.");
             return;
         }
 
         start_adv_tasks();
-        String currentHashPrefix = currentHash.substring(0, Math.min(20, currentHash.length()));
-        update_notif("Broadcasting hash: " + currentHashPrefix, currentHashPrefix);
+        String current_hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
+        update_notif("Broadcasting hash: " + current_hashPrefix, current_hashPrefix);
     }
 
     void broadcast_hash() {
-        if (!isRunning || advertiser == null || currentHash == null || currentHash.isEmpty()) {
+        if (!is_running || advertiser == null || current_hash == null || current_hash.isEmpty()) {
             return;
         }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
@@ -382,7 +413,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         try {
-            String hashPrefix = currentHash.substring(0, Math.min(20, currentHash.length()));
+            String hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
             byte[] hashBytes = hashPrefix.getBytes(StandardCharsets.UTF_8);
 
             ParcelUuid uuid = ParcelUuid.fromString("0000FFF0-0000-1000-8000-00805F9B34FB");
@@ -418,7 +449,7 @@ public class MainActivity extends AppCompatActivity {
             int importance = NotificationManager.IMPORTANCE_LOW;
             NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
             channel.setDescription(description);
-            notificationManager.createNotificationChannel(channel);
+            notification_manager.createNotificationChannel(channel);
         }
     }
 
@@ -436,15 +467,15 @@ public class MainActivity extends AppCompatActivity {
                 .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentIntent(pendingIntent)
-                .setOngoing(isRunning || wasRunningBeforeLock) 
+                .setOngoing(is_running || was_running_before_lock) 
                 .setPriority(NotificationCompat.PRIORITY_LOW);
 
         if (bigTextContent != null && !bigTextContent.isEmpty()) {
             builder.setStyle(new NotificationCompat.BigTextStyle().bigText("Current hash prefix: " + bigTextContent));
         }
         
-        if (notificationManager != null) {
-            notificationManager.notify(NOTIFICATION_ID, builder.build());
+        if (notification_manager != null) {
+            notification_manager.notify(NOTIFICATION_ID, builder.build());
         }
     }
 
@@ -454,8 +485,8 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
                 notify_user("Bluetooth enabled.");
-                if (bluetoothAdapter != null) { 
-                    advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+                if (bluetooth_adapter != null) { 
+                    advertiser = bluetooth_adapter.getBluetoothLeAdvertiser();
                      if (advertiser == null) {
                         notify_user("BLE Advertising not supported on this device after enabling Bluetooth.");
                         return;
@@ -467,35 +498,57 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private boolean isReceiverRegistered = false;
+    private boolean is_receiver_registered = false;
 
-    private void registerScreenStateReceiver() {
-        if (!isReceiverRegistered) {
+    private void register_screen_state_receiver() {
+        if (!is_receiver_registered) {
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_SCREEN_OFF);
             filter.addAction(Intent.ACTION_USER_PRESENT);
             filter.addAction(Intent.ACTION_SCREEN_ON);
             filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
-            registerReceiver(screenStateReceiver, filter);
-            isReceiverRegistered = true;
+            registerReceiver(screen_state_receiver, filter);
+            is_receiver_registered = true;
         }
     }
 
-    private void unregisterScreenStateReceiver() {
-        if (isReceiverRegistered) {
+    private void unregister_screen_state_receiver() {
+        if (is_receiver_registered) {
             try {
-                unregisterReceiver(screenStateReceiver);
-                isReceiverRegistered = false;
+                unregisterReceiver(screen_state_receiver);
+                is_receiver_registered = false;
             } catch (IllegalArgumentException e) {
                 // Receiver was not registered
             }
         }
     }
 
+    private void setup_password_ui() {
+        String savedpasshash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
+        
+        if (savedpasshash != null && !savedpasshash.isEmpty()) {
+            password_input.setEnabled(false);
+            password_input.setText("Password saved (click clear to change)");
+            password_input_layout.setHint("Saved Password");
+            clear_password_btn.setVisibility(View.VISIBLE);
+        } else {
+            password_input.setEnabled(true);
+            password_input.setText("");
+            password_input_layout.setHint("Enter your password");
+            clear_password_btn.setVisibility(View.GONE);
+        }
+    }
+    
+    private void clear_saved_password() {
+        shared_prefs.edit().remove(SAVED_PASSWORD_HASH).apply();
+        setup_password_ui();
+        notify_user("Saved password cleared. Please enter a new password.");
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
-        registerScreenStateReceiver();
+        register_screen_state_receiver();
     }
 
     @Override
@@ -507,11 +560,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterScreenStateReceiver();
-        if (isRunning) { 
+        unregister_screen_state_receiver();
+        if (is_running) { 
             stop();
-        } else if (notificationManager != null) {
-            notificationManager.cancel(NOTIFICATION_ID);
+        } else if (notification_manager != null) {
+            notification_manager.cancel(NOTIFICATION_ID);
         }
         if (advertiser != null && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
             advertiser.stopAdvertising(callback);

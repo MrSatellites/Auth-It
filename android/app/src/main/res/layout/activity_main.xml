@@ -67,7 +67,6 @@
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Password"
                 app:startIconDrawable="@drawable/ic_key_clean"
                 app:startIconTint="@color/accent_blue"
                 app:endIconMode="password_toggle"
@@ -91,6 +90,25 @@
                     android:textColorHint="@color/on_surface_variant" />
 
             </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/clearPasswordButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:text="Clear Saved Password"
+                android:textSize="14sp"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                app:cornerRadius="24dp"
+                app:icon="@drawable/ic_key_clean"
+                app:iconGravity="textStart"
+                app:iconSize="18dp"
+                app:iconTint="@color/accent_blue"
+                app:strokeColor="@color/accent_blue"
+                app:strokeWidth="2dp"
+                android:textColor="@color/accent_blue"
+                app:rippleColor="#1A4FC3FF"
+                android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/startButton"
