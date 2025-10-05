@@ -395,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
         
         broadcast_hash(); 
         handler.removeCallbacksAndMessages(null);
-        handler.postDelayed(this::roll_hash, 100);
+        handler.postDelayed(this::roll_hash, 200);
     }
 
     private void stop_adv_tasks() {
