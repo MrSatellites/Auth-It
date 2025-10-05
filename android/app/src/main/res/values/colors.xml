@@ -15,6 +15,14 @@
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="dark_gray">#121212</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
     <color name="teal_200">#03DAC5</color>
     <color name="teal_700">#018786</color>
+    <color name="neon_pink">#FF1493</color>
+    <color name="electric_blue">#00BFFF</color>
+    <color name="neon_green">#39FF14</color>
+    <color name="vibrant_orange">#FF4500</color>
+    <color name="hot_magenta">#FF0080</color>
+    <color name="cyber_purple">#8A2BE2</color>
+    <color name="custom_purple">#9D70E3</color>
 </resources>

@@ -26,6 +26,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
+import android.view.Menu;
+import android.view.MenuItem;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
@@ -35,6 +37,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.appcompat.widget.Toolbar;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -58,12 +61,12 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText password_input;
     private MaterialButton start_btn;
-    private MaterialButton clear_password_btn;
     private MaterialCardView status_container;
     private com.google.android.material.textfield.TextInputLayout password_input_layout;
     
     private static final String PREFS_NAME = "AuthItPrefs";
     private static final String SAVED_PASSWORD_HASH = "saved_password_hash";
+    private static final String RUN_WITH_SCREEN_LOCKED = "run_with_screen_locked";
     private SharedPreferences shared_prefs;
     private TextView status_text;
     private View status_indicator;
@@ -87,6 +90,17 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private final BroadcastReceiver stop_broadcast_receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("com.mrsat.authit.STOP_BROADCAST".equals(intent.getAction())) {
+                if (is_running) {
+                    stop();
+                }
+            }
+        }
+    };
+
     private final BroadcastReceiver screen_state_receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -100,13 +114,23 @@ public class MainActivity extends AppCompatActivity {
                 last_offscreen = currentTime;
 
                 if (is_running) {
-                    was_running_before_lock = true;
-                    stop_adv_tasks();
-                    runOnUiThread(() -> {
-                        status_text.setText("Phone Locked");
-                        status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
-                    });
-                    update_notif("Phone locked", "unlock the phone to unlock your computer :)");
+                    boolean run_with_lock = shared_prefs.getBoolean(RUN_WITH_SCREEN_LOCKED, false);
+                    
+                    if (run_with_lock) {
+                        runOnUiThread(() -> {
+                            status_text.setText("Running in Background");
+                            status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.accent_green));
+                        });
+                        update_notif("Running in background", "Auth-It is running while screen is locked");
+                    } else {
+                        was_running_before_lock = true;
+                        stop_adv_tasks();
+                        runOnUiThread(() -> {
+                            status_text.setText("Phone Locked");
+                            status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
+                        });
+                        update_notif("Phone locked", "unlock the phone to unlock your computer :)");
+                    }
                 }
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
                 handle_screen_unlock(context);
@@ -115,7 +139,18 @@ public class MainActivity extends AppCompatActivity {
         }
         
         private void handle_screen_unlock(Context context) {
-            if (was_running_before_lock) {
+            boolean run_with_lock = shared_prefs.getBoolean(RUN_WITH_SCREEN_LOCKED, false);
+            
+            if (run_with_lock && is_running) {
+                runOnUiThread(() -> {
+                    status_text.setText("Broadcasting Active");
+                    status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
+                });
+                if (current_hash != null && !current_hash.isEmpty()) {
+                    String pref_hash = current_hash.substring(0, Math.min(20, current_hash.length()));
+                    update_notif("Broadcasting hash: " + pref_hash, pref_hash);
+                }
+            } else if (was_running_before_lock) {
                 was_running_before_lock = false;
                 
                 handler.postDelayed(() -> {
@@ -152,13 +187,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        password_input = findViewById(R.id.passwordEditText);
-        password_input_layout = findViewById(R.id.passwordInputLayout);
-        start_btn = findViewById(R.id.startButton);
-        clear_password_btn = findViewById(R.id.clearPasswordButton);
-        status_container = findViewById(R.id.statusContainer);
-        status_text = findViewById(R.id.statusText);
-        status_indicator = findViewById(R.id.statusIndicator);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        password_input = findViewById(R.id.password_edit_text);
+        password_input_layout = findViewById(R.id.password_input_layout);
+        start_btn = findViewById(R.id.start_button);
+        status_container = findViewById(R.id.status_container);
+        status_text = findViewById(R.id.status_text);
+        status_indicator = findViewById(R.id.status_indicator);
         
         shared_prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         setup_password_ui();
@@ -184,10 +221,11 @@ public class MainActivity extends AppCompatActivity {
                 start();
             }
         });
-        
-        clear_password_btn.setOnClickListener(v -> clear_saved_password());
 
         register_screen_state_receiver();
+        register_stop_broadcast_receiver();
+        
+        update_ui();
     }
 
     private void check_req_perms() {
@@ -241,16 +279,19 @@ public class MainActivity extends AppCompatActivity {
             if (is_running) {
                 start_btn.setText("Stop Broadcasting");
                 start_btn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_stop_simple));
-                start_btn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient_stop));
+                start_btn.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.error));
                 status_container.setVisibility(View.VISIBLE);
                 status_text.setText("Broadcasting Active");
                 status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.success));
             } else {
                 start_btn.setText("Start Broadcasting");
                 start_btn.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_arrow_right));
-                start_btn.setBackground(ContextCompat.getDrawable(this, R.drawable.button_gradient));
+               
+                start_btn.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.custom_purple));
                 status_container.setVisibility(View.GONE);
             }
+            start_btn.clearFocus();
+            start_btn.setPressed(false);
         });
     }
 
@@ -269,6 +310,12 @@ public class MainActivity extends AppCompatActivity {
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
             return; 
         }
+        
+        if (advertiser != null) {
+            stop_adv_tasks();
+            advertiser = null;
+        }
+        
         proceed_start();
     }
 
@@ -293,38 +340,35 @@ public class MainActivity extends AppCompatActivity {
         
         if (saved_hash != null && !saved_hash.isEmpty()) {
             password = saved_hash;
+            current_hash = saved_hash;
         } else {
             String inputPassword = password_input.getText().toString();
             if (inputPassword.isEmpty()) {
                 notify_user("Please enter a password.");
                 return;
             }
-            password = inputPassword;
-            String passwordHash = sha512(password);
+            String passwordHash = sha512(inputPassword);
             shared_prefs.edit().putString(SAVED_PASSWORD_HASH, passwordHash).apply();
             setup_password_ui();
+            password = passwordHash;
+            current_hash = passwordHash;
         }
 
         is_running = true;
         was_running_before_lock = false;
         update_ui();
-        int randomIterations = new Random().nextInt(10000) + 10;
-        
-        if (saved_hash != null && password.equals(saved_hash)) {
-            current_hash = password;
-        } else {
-            current_hash = sha512(password);
-        }
-        
-        for (int i = 0; i < randomIterations; i++) {
-            current_hash = sha512(current_hash);
-        }
+
+        String hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
+        String padding = "0".repeat(108);
+        String currentDate = ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        String input_next = hashPrefix + padding + password + currentDate;
+        current_hash = sha512(input_next);
 
         start_adv_tasks();
 
-        String hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
+        String updatedHashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
         notify_user("AuthIt Started.");
-        update_notif("Broadcasting : " + hashPrefix, hashPrefix);
+        update_notif("Broadcasting : " + updatedHashPrefix, updatedHashPrefix);
     }
 
     void stop() {
@@ -332,6 +376,8 @@ public class MainActivity extends AppCompatActivity {
         was_running_before_lock = false;
         update_ui();
         stop_adv_tasks();
+    
+        advertiser = null;
 
         if (notification_manager != null) {
             notification_manager.cancel(NOTIFICATION_ID);
@@ -349,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
         
         broadcast_hash(); 
         handler.removeCallbacksAndMessages(null);
-        handler.postDelayed(this::roll_hash, 600);
+        handler.postDelayed(this::roll_hash, 100);
     }
 
     private void stop_adv_tasks() {
@@ -382,14 +428,11 @@ public class MainActivity extends AppCompatActivity {
         if (!is_running) return;
 
         String hashPrefixOld = current_hash.substring(0, Math.min(20, current_hash.length()));
-        String padding = "";
-        for (int i = 0; i < 108; i++)
-            padding += "0";
+        // Use same padding length as Linux client (128 - 20 = 108)
+        String padding = "0".repeat(108);
 
         String currentDate = ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-
-        String hashedPassword = password;
-        String input_next = hashPrefixOld + padding + hashedPassword + currentDate;
+        String input_next = hashPrefixOld + padding + password + currentDate;
         current_hash = sha512(input_next);
 
         if (current_hash.isEmpty()) {
@@ -507,7 +550,11 @@ public class MainActivity extends AppCompatActivity {
             filter.addAction(Intent.ACTION_USER_PRESENT);
             filter.addAction(Intent.ACTION_SCREEN_ON);
             filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
-            registerReceiver(screen_state_receiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screen_state_receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(screen_state_receiver, filter);
+            }
             is_receiver_registered = true;
         }
     }
@@ -523,27 +570,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void register_stop_broadcast_receiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("com.mrsat.authit.STOP_BROADCAST");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(stop_broadcast_receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(stop_broadcast_receiver, filter);
+        }
+    }
+
     private void setup_password_ui() {
         String savedpasshash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
         
         if (savedpasshash != null && !savedpasshash.isEmpty()) {
             password_input.setEnabled(false);
-            password_input.setText("Password saved (click clear to change)");
+            password_input.setText("Password saved - go to settings to change");
             password_input_layout.setHint("Saved Password");
-            clear_password_btn.setVisibility(View.VISIBLE);
         } else {
             password_input.setEnabled(true);
             password_input.setText("");
             password_input_layout.setHint("Enter your password");
-            clear_password_btn.setVisibility(View.GONE);
         }
     }
     
-    private void clear_saved_password() {
-        shared_prefs.edit().remove(SAVED_PASSWORD_HASH).apply();
-        setup_password_ui();
-        notify_user("Saved password cleared. Please enter a new password.");
-    }
+    
 
     @Override
     protected void onResume() {
@@ -560,14 +611,33 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregister_screen_state_receiver();
-        if (is_running) { 
-            stop();
-        } else if (notification_manager != null) {
-            notification_manager.cancel(NOTIFICATION_ID);
+        try {
+            unregisterReceiver(screen_state_receiver);
+        } catch (IllegalArgumentException e) {
         }
-        if (advertiser != null && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
-            advertiser.stopAdvertising(callback);
+        try {
+            unregisterReceiver(stop_broadcast_receiver);
+        } catch (IllegalArgumentException e) {
         }
+        stop_adv_tasks();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        
+        if (id == R.id.action_settings) {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            startActivity(intent);
+            return true;
+        }
+        
+        return super.onOptionsItemSelected(item);
     }
 }

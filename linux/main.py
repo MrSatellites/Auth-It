@@ -97,11 +97,13 @@ class AuthClient:
             if is_authenticated:
                 self.authentication_successful.set()
             else:
+            
                 padded_hash = received_hash + "0" * (
                     HASH_PADDING_LENGTH - len(received_hash)
                 )
                 current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
                 payload = f"{padded_hash}{self.password_hash}{current_date}".encode()
+            
                 self.next_prediction = hashlib.sha512(payload).hexdigest()[
                     :PREDICTION_LENGTH
                 ]
