@@ -6,7 +6,7 @@ AuthIt is a revolutionary two-part authentication system that leverages **Blueto
 
 ### 🛡️ Security Features
 - **SHA-512 Cryptographic Hashing**: Military-grade encryption for secure hash generation
-- **Rolling Hash Algorithm**: Dynamic hashes that change every 600ms based on current time and password
+- **Rolling Hash Algorithm**: Dynamic hashes that change every 100ms based on current time and password
 - **Proximity-Based Security**: Authentication only works within configurable signal range (RSSI threshold: -87 dBm)
 - **Replay Attack Protection**: Time-synchronized rolling hashes prevent replay attacks
 - **No Network Dependency**: Works completely offline using local Bluetooth communication
