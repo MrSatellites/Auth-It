@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String RUN_WITH_SCREEN_LOCKED = "run_with_screen_locked";
     private static final String AUTO_START_ENABLED = "auto_start_enabled";
     private static final String USE_FOREGROUND_SERVICE = "use_foreground_service";
+    private static final String DEBUG_NOTIFICATIONS_ENABLED = "debug_notifications_enabled";
     private SharedPreferences shared_prefs;
     private TextView status_text;
     private View status_indicator;

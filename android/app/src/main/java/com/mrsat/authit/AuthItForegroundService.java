@@ -40,6 +40,7 @@ public class AuthItForegroundService extends Service {
     private static final int FOREGROUND_NOTIFICATION_ID = 2;
     private static final String PREFS_NAME = "AuthItPrefs";
     private static final String SAVED_PASSWORD_HASH = "saved_password_hash";
+    private static final String DEBUG_NOTIFICATIONS_ENABLED = "debug_notifications_enabled";
     
     public static final String ACTION_START_SERVICE = "com.mrsat.authit.START_SERVICE";
     public static final String ACTION_STOP_SERVICE = "com.mrsat.authit.STOP_SERVICE";
@@ -84,12 +85,12 @@ public class AuthItForegroundService extends Service {
             
             if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                 // Service continue de fonctionner même écran éteint
-                updateNotification("Running in background", "Auth-It service is running");
+                updateNotificationIfDebugEnabled("Running in background", "Auth-It service is running");
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
                 // Écran déverrouillé
                 if (isRunning && currentHash != null) {
                     String hashPrefix = currentHash.substring(0, Math.min(20, currentHash.length()));
-                    updateNotification("Broadcasting hash: " + hashPrefix, "Service active");
+                    updateNotificationIfDebugEnabled("Broadcasting hash: " + hashPrefix, "Service active");
                 }
             }
         }
@@ -249,8 +250,10 @@ public class AuthItForegroundService extends Service {
         }
 
         broadcastHash();
+        
+        // Mettre à jour la notification seulement si les notifications de debug sont activées
         String currentHashPrefix = currentHash.substring(0, Math.min(20, currentHash.length()));
-        updateNotification("Broadcasting hash: " + currentHashPrefix, currentHashPrefix);
+        updateNotificationIfDebugEnabled("Broadcasting hash: " + currentHashPrefix, currentHashPrefix);
         
         handler.removeCallbacksAndMessages(null);
         handler.postDelayed(this::rollHash, 200);
@@ -363,6 +366,16 @@ public class AuthItForegroundService extends Service {
         Notification notification = createForegroundNotification(title, content);
         if (notificationManager != null) {
             notificationManager.notify(FOREGROUND_NOTIFICATION_ID, notification);
+        }
+    }
+    
+    private void updateNotificationIfDebugEnabled(String debugTitle, String debugContent) {
+        boolean debugNotifications = sharedPrefs.getBoolean(DEBUG_NOTIFICATIONS_ENABLED, false);
+        if (debugNotifications) {
+            updateNotification(debugTitle, debugContent);
+        } else {
+            // Notification basique pour le service de premier plan (requis par Android)
+            updateNotification("Auth-It Service", "Running in background");
         }
     }
 

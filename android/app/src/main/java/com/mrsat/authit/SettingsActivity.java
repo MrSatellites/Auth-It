@@ -21,11 +21,13 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String RUN_WITH_SCREEN_LOCKED = "run_with_screen_locked";
     private static final String AUTO_START_ENABLED = "auto_start_enabled";
     private static final String USE_FOREGROUND_SERVICE = "use_foreground_service";
+    private static final String DEBUG_NOTIFICATIONS_ENABLED = "debug_notifications_enabled";
     
     private SharedPreferences shared_prefs;
     private Switch screen_lock_switch;
     private Switch auto_start_switch;
     private Switch foreground_service_switch;
+    private Switch debug_notifications_switch;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +46,7 @@ public class SettingsActivity extends AppCompatActivity {
         screen_lock_switch = findViewById(R.id.screen_lock_switch);
         auto_start_switch = findViewById(R.id.auto_start_switch);
         foreground_service_switch = findViewById(R.id.foreground_service_switch);
+        debug_notifications_switch = findViewById(R.id.debug_notifications_switch);
         View github_link = findViewById(R.id.github_link);
         MaterialButton clear_password_btn = findViewById(R.id.clear_password_settings_btn);
         MaterialButton battery_optimization_btn = findViewById(R.id.battery_optimization_btn);
@@ -52,10 +55,12 @@ public class SettingsActivity extends AppCompatActivity {
         boolean run_with_lock = shared_prefs.getBoolean(RUN_WITH_SCREEN_LOCKED, true);
         boolean auto_start = shared_prefs.getBoolean(AUTO_START_ENABLED, false);
         boolean use_foreground_service = shared_prefs.getBoolean(USE_FOREGROUND_SERVICE, true);
+        boolean debug_notifications = shared_prefs.getBoolean(DEBUG_NOTIFICATIONS_ENABLED, false);
         
         screen_lock_switch.setChecked(run_with_lock);
         auto_start_switch.setChecked(auto_start);
         foreground_service_switch.setChecked(use_foreground_service);
+        debug_notifications_switch.setChecked(debug_notifications);
         
         screen_lock_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             shared_prefs.edit().putBoolean(RUN_WITH_SCREEN_LOCKED, isChecked).apply();
@@ -73,9 +78,18 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "Redémarrez l'application pour que le changement prenne effet", Toast.LENGTH_LONG).show();
         });
         
+        debug_notifications_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            shared_prefs.edit().putBoolean(DEBUG_NOTIFICATIONS_ENABLED, isChecked).apply();
+            if (isChecked) {
+                Toast.makeText(this, "Debug notifications enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Debug notifications disabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
         github_link.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setData(Uri.parse("https://github.com/MrSatellites/Auth-It/releases/tag/v1.2.1"));
+            intent.setData(Uri.parse("https://github.com/MrSatellites/Auth-It/")); // frr c'est crade
             startActivity(intent);
         });
         
