@@ -19,9 +19,13 @@ public class SettingsActivity extends AppCompatActivity {
     
     private static final String PREFS_NAME = "AuthItPrefs";
     private static final String RUN_WITH_SCREEN_LOCKED = "run_with_screen_locked";
+    private static final String AUTO_START_ENABLED = "auto_start_enabled";
+    private static final String USE_FOREGROUND_SERVICE = "use_foreground_service";
     
     private SharedPreferences shared_prefs;
     private Switch screen_lock_switch;
+    private Switch auto_start_switch;
+    private Switch foreground_service_switch;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,14 +42,35 @@ public class SettingsActivity extends AppCompatActivity {
         shared_prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         
         screen_lock_switch = findViewById(R.id.screen_lock_switch);
+        auto_start_switch = findViewById(R.id.auto_start_switch);
+        foreground_service_switch = findViewById(R.id.foreground_service_switch);
         View github_link = findViewById(R.id.github_link);
         MaterialButton clear_password_btn = findViewById(R.id.clear_password_settings_btn);
+        MaterialButton battery_optimization_btn = findViewById(R.id.battery_optimization_btn);
+        MaterialButton auto_start_settings_btn = findViewById(R.id.auto_start_settings_btn);
         
-        boolean run_with_lock = shared_prefs.getBoolean(RUN_WITH_SCREEN_LOCKED, false);
+        boolean run_with_lock = shared_prefs.getBoolean(RUN_WITH_SCREEN_LOCKED, true);
+        boolean auto_start = shared_prefs.getBoolean(AUTO_START_ENABLED, false);
+        boolean use_foreground_service = shared_prefs.getBoolean(USE_FOREGROUND_SERVICE, true);
+        
         screen_lock_switch.setChecked(run_with_lock);
+        auto_start_switch.setChecked(auto_start);
+        foreground_service_switch.setChecked(use_foreground_service);
         
         screen_lock_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             shared_prefs.edit().putBoolean(RUN_WITH_SCREEN_LOCKED, isChecked).apply();
+        });
+        
+        auto_start_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            shared_prefs.edit().putBoolean(AUTO_START_ENABLED, isChecked).apply();
+            if (isChecked) {
+                BatteryOptimizationHelper.requestAutoStartPermission(this);
+            }
+        });
+        
+        foreground_service_switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            shared_prefs.edit().putBoolean(USE_FOREGROUND_SERVICE, isChecked).apply();
+            Toast.makeText(this, "Redémarrez l'application pour que le changement prenne effet", Toast.LENGTH_LONG).show();
         });
         
         github_link.setOnClickListener(v -> {
@@ -71,6 +96,14 @@ public class SettingsActivity extends AppCompatActivity {
                 startActivity(restartIntent);
                 finish();
             }, 500);
+        });
+        
+        battery_optimization_btn.setOnClickListener(v -> {
+            BatteryOptimizationHelper.requestIgnoreBatteryOptimization(this);
+        });
+        
+        auto_start_settings_btn.setOnClickListener(v -> {
+            BatteryOptimizationHelper.requestAutoStartPermission(this);
         });
     }
     

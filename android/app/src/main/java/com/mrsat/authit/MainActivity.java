@@ -67,6 +67,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "AuthItPrefs";
     private static final String SAVED_PASSWORD_HASH = "saved_password_hash";
     private static final String RUN_WITH_SCREEN_LOCKED = "run_with_screen_locked";
+    private static final String AUTO_START_ENABLED = "auto_start_enabled";
+    private static final String USE_FOREGROUND_SERVICE = "use_foreground_service";
     private SharedPreferences shared_prefs;
     private TextView status_text;
     private View status_indicator;
@@ -76,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     private String password;
     private boolean was_running_before_lock = false;
     private String last_broadcast_hash = "";
+    private boolean use_foreground_service = true;
 
     private long last_offscreen = 0;
     private AdvertiseCallback callback = new AdvertiseCallback() {
@@ -97,6 +100,26 @@ public class MainActivity extends AppCompatActivity {
             if ("com.mrsat.authit.STOP_BROADCAST".equals(intent.getAction())) {
                 if (is_running) {
                     stop();
+                }
+            }
+        }
+    };
+
+    private final BroadcastReceiver service_status_receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (AuthItForegroundService.ACTION_UPDATE_STATUS.equals(intent.getAction())) {
+                String message = intent.getStringExtra("message");
+                boolean serviceRunning = intent.getBooleanExtra("isRunning", false);
+                
+                if (message != null) {
+                    notify_user(message);
+                }
+                
+                // Synchroniser l'état de l'UI avec le service
+                if (serviceRunning != is_running) {
+                    is_running = serviceRunning;
+                    update_ui();
                 }
             }
         }
@@ -199,6 +222,7 @@ public class MainActivity extends AppCompatActivity {
         status_indicator = findViewById(R.id.status_indicator);
         
         shared_prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        use_foreground_service = shared_prefs.getBoolean(USE_FOREGROUND_SERVICE, true);
         setup_password_ui();
 
         BluetoothManager mgr = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
@@ -225,6 +249,10 @@ public class MainActivity extends AppCompatActivity {
 
         register_screen_state_receiver();
         register_stop_broadcast_receiver();
+        register_service_status_receiver();
+        
+        // Vérifier les optimisations de batterie au premier démarrage
+        check_battery_optimization();
         
         update_ui();
     }
@@ -301,6 +329,55 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void start() {
+        if (use_foreground_service) {
+            start_with_foreground_service();
+        } else {
+            start_legacy();
+        }
+    }
+
+    void start_with_foreground_service() {
+        // Vérifier les conditions préalables
+        if (bluetooth_adapter == null) {
+            notify_user("Bluetooth adapter not available.");
+            return;
+        }
+        if (!bluetooth_adapter.isEnabled()) {
+            notify_user("Bluetooth is not enabled. Requesting to enable...");
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            return; 
+        }
+
+        // Vérifier qu'un mot de passe est configuré
+        String saved_hash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
+        if (saved_hash == null || saved_hash.isEmpty()) {
+            String inputPassword = password_input.getText().toString();
+            if (inputPassword.isEmpty()) {
+                notify_user("Please enter a password.");
+                return;
+            }
+            String passwordHash = sha512(inputPassword);
+            shared_prefs.edit().putString(SAVED_PASSWORD_HASH, passwordHash).apply();
+            setup_password_ui();
+        }
+
+        // Démarrer le service de premier plan
+        Intent serviceIntent = new Intent(this, AuthItForegroundService.class);
+        serviceIntent.setAction(AuthItForegroundService.ACTION_START_SERVICE);
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        
+        is_running = true;
+        update_ui();
+        notify_user("AuthIt service started in background.");
+    }
+
+    void start_legacy() {
         if (bluetooth_adapter == null) {
             notify_user("Bluetooth adapter not available.");
             return;
@@ -373,6 +450,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void stop() {
+        if (use_foreground_service) {
+            stop_foreground_service();
+        } else {
+            stop_legacy();
+        }
+    }
+
+    void stop_foreground_service() {
+        // Arrêter le service de premier plan
+        Intent serviceIntent = new Intent(this, AuthItForegroundService.class);
+        serviceIntent.setAction(AuthItForegroundService.ACTION_STOP_SERVICE);
+        startService(serviceIntent);
+        
+        is_running = false;
+        update_ui();
+        notify_user("AuthIt service stopped.");
+    }
+
+    void stop_legacy() {
         is_running = false;
         was_running_before_lock = false;
         last_broadcast_hash = ""; // Reset to allow fresh start next time
@@ -591,6 +687,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void register_service_status_receiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(AuthItForegroundService.ACTION_UPDATE_STATUS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(service_status_receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(service_status_receiver, filter);
+        }
+    }
+
+    private void check_battery_optimization() {
+        if (!BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this)) {
+            // Attendre un peu avant d'afficher la demande pour ne pas submerger l'utilisateur
+            handler.postDelayed(() -> {
+                BatteryOptimizationHelper.requestIgnoreBatteryOptimization(this);
+            }, 2000);
+        }
+    }
+
     private void setup_password_ui() {
         String savedpasshash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
         
@@ -630,7 +745,14 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(stop_broadcast_receiver);
         } catch (IllegalArgumentException e) {
         }
-        stop_adv_tasks();
+        try {
+            unregisterReceiver(service_status_receiver);
+        } catch (IllegalArgumentException e) {
+        }
+        
+        if (!use_foreground_service) {
+            stop_adv_tasks();
+        }
     }
 
     @Override
