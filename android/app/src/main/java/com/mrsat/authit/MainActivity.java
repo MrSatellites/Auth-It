@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
     private String current_hash;
     private String password;
     private boolean was_running_before_lock = false;
+    private String last_broadcast_hash = "";
 
     private long last_offscreen = 0;
     private AdvertiseCallback callback = new AdvertiseCallback() {
@@ -374,6 +375,7 @@ public class MainActivity extends AppCompatActivity {
     void stop() {
         is_running = false;
         was_running_before_lock = false;
+        last_broadcast_hash = ""; // Reset to allow fresh start next time
         update_ui();
         stop_adv_tasks();
     
@@ -391,7 +393,6 @@ public class MainActivity extends AppCompatActivity {
             notify_user("Cannot start advertising tasks: Advertiser not initialized.");
             return;
         }
-        advertiser.stopAdvertising(callback); 
         
         broadcast_hash(); 
         handler.removeCallbacksAndMessages(null);
@@ -441,9 +442,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        start_adv_tasks();
+        broadcast_hash();
         String current_hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
         update_notif("Broadcasting hash: " + current_hashPrefix, current_hashPrefix);
+        
+        handler.removeCallbacksAndMessages(null);
+        handler.postDelayed(this::roll_hash, 200);
     }
 
     void broadcast_hash() {
@@ -457,6 +461,13 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             String hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
+            
+            // Only restart advertising if hash has actually changed
+            if (hashPrefix.equals(last_broadcast_hash)) {
+                return; // Hash unchanged, no need to restart advertising
+            }
+            
+            last_broadcast_hash = hashPrefix;
             byte[] hashBytes = hashPrefix.getBytes(StandardCharsets.UTF_8);
 
             ParcelUuid uuid = ParcelUuid.fromString("0000FFF0-0000-1000-8000-00805F9B34FB");
