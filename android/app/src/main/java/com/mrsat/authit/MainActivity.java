@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ParcelUuid;
+import android.os.PowerManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -54,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSIONS_REQUEST_CODE = 1002;
     private static final String NOTIFICATION_CHANNEL_ID = "authit_ble_channel";
     private static final int NOTIFICATION_ID = 1;
+    private static final int FOREGROUND_SERVICE_ID = 2;
 
     private BluetoothLeAdvertiser advertiser;
     private BluetoothAdapter bluetooth_adapter;
@@ -76,8 +78,33 @@ public class MainActivity extends AppCompatActivity {
     private String password;
     private boolean was_running_before_lock = false;
     private String last_broadcast_hash = "";
+    private PowerManager.WakeLock wake_lock;
 
     private long last_offscreen = 0;
+
+    private void acquire_wake_lock() {
+        PowerManager power_manager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        
+        if (wake_lock == null && power_manager != null) {
+            wake_lock = power_manager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, 
+                "AuthIt::BroadcastWakeLock"
+            );
+            wake_lock.setReferenceCounted(false);
+        }
+        
+        if (wake_lock != null && !wake_lock.isHeld()) {
+            wake_lock.acquire();
+        }
+    }
+    
+    private void release_wake_lock() {
+        if (wake_lock != null && wake_lock.isHeld()) {
+            wake_lock.release();
+            wake_lock = null;
+        }
+    }
+
     private AdvertiseCallback callback = new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -122,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
                             status_text.setText("Running in Background");
                             status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.accent_green));
                         });
-                        update_notif("Running in background", "Auth-It is running while screen is locked");
                     } else {
                         was_running_before_lock = true;
                         stop_adv_tasks();
@@ -130,7 +156,6 @@ public class MainActivity extends AppCompatActivity {
                             status_text.setText("Phone Locked");
                             status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.warning));
                         });
-                        update_notif("Phone locked", "unlock the phone to unlock your computer :)");
                     }
                 }
             } else if (Intent.ACTION_USER_PRESENT.equals(action)) {
@@ -147,10 +172,6 @@ public class MainActivity extends AppCompatActivity {
                     status_text.setText("Broadcasting Active");
                     status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
                 });
-                if (current_hash != null && !current_hash.isEmpty()) {
-                    String pref_hash = current_hash.substring(0, Math.min(20, current_hash.length()));
-                    update_notif("Broadcasting hash: " + pref_hash, pref_hash);
-                }
             } else if (was_running_before_lock) {
                 was_running_before_lock = false;
                 
@@ -166,10 +187,6 @@ public class MainActivity extends AppCompatActivity {
                                 status_text.setText("Broadcasting Active");
                                 status_indicator.setBackgroundTintList(ContextCompat.getColorStateList(MainActivity.this, R.color.success));
                             });
-                            if (current_hash != null && !current_hash.isEmpty()) {
-                                String pref_hash = current_hash.substring(0, Math.min(20, current_hash.length()));
-                                update_notif("Broadcasting hash: " + pref_hash, pref_hash);
-                            }
                         } else {
                             stop(); 
                             notify_user("Could not resume broadcast. BLE Advertiser not available.");
@@ -364,12 +381,10 @@ public class MainActivity extends AppCompatActivity {
         String currentDate = ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
         String input_next = hashPrefix + padding + password + currentDate;
         current_hash = sha512(input_next);
-
+        start_foreground_service();
+        acquire_wake_lock();
         start_adv_tasks();
-
-        String updatedHashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
         notify_user("AuthIt Started.");
-        update_notif("Broadcasting : " + updatedHashPrefix, updatedHashPrefix);
     }
 
     void stop() {
@@ -380,6 +395,12 @@ public class MainActivity extends AppCompatActivity {
         stop_adv_tasks();
     
         advertiser = null;
+
+        // Stop foreground service
+        stop_foreground_service();
+        
+        // Release wake lock
+        release_wake_lock();
 
         if (notification_manager != null) {
             notification_manager.cancel(NOTIFICATION_ID);
@@ -443,11 +464,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         broadcast_hash();
-        String current_hashPrefix = current_hash.substring(0, Math.min(20, current_hash.length()));
-        update_notif("Broadcasting hash: " + current_hashPrefix, current_hashPrefix);
+        
+        ensure_notification_visible();
         
         handler.removeCallbacksAndMessages(null);
         handler.postDelayed(this::roll_hash, 200);
+    }
+
+    private void ensure_notification_visible() {
+        if (is_running && notification_manager != null) {
+            update_notif("Auth It Is Running", "AuthIt is broadcasting authentication signals");
+        }
     }
 
     void broadcast_hash() {
@@ -500,10 +527,40 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "AuthIt Broadcasting Service";
             String description = "Notifications for AuthIt BLE broadcasting status";
-            int importance = NotificationManager.IMPORTANCE_LOW;
+            int importance = NotificationManager.IMPORTANCE_HIGH;
             NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
             channel.setDescription(description);
             notification_manager.createNotificationChannel(channel);
+        }
+    }
+
+    private void start_foreground_service() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return; 
+        }
+
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("AuthIt Service")
+                .setContentText("AuthIt is running in the background")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH) // High priority to prevent killing
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText("AuthIt is Running"));
+        
+        if (notification_manager != null) {
+            notification_manager.notify(FOREGROUND_SERVICE_ID, builder.build());
+        }
+    }
+
+    private void stop_foreground_service() {
+        if (notification_manager != null) {
+            notification_manager.cancel(FOREGROUND_SERVICE_ID);
         }
     }
 
@@ -518,15 +575,11 @@ public class MainActivity extends AppCompatActivity {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("AuthIt Service")
-                .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentIntent(pendingIntent)
-                .setOngoing(is_running || was_running_before_lock) 
-                .setPriority(NotificationCompat.PRIORITY_LOW);
-
-        if (bigTextContent != null && !bigTextContent.isEmpty()) {
-            builder.setStyle(new NotificationCompat.BigTextStyle().bigText("Current hash prefix: " + bigTextContent));
-        }
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
         
         if (notification_manager != null) {
             notification_manager.notify(NOTIFICATION_ID, builder.build());
@@ -596,7 +649,7 @@ public class MainActivity extends AppCompatActivity {
         
         if (savedpasshash != null && !savedpasshash.isEmpty()) {
             password_input.setEnabled(false);
-            password_input.setText("Password saved - go to settings to change");
+            password_input.setText("Password saved dw :)");
             password_input_layout.setHint("Saved Password");
         } else {
             password_input.setEnabled(true);
@@ -611,6 +664,21 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         register_screen_state_receiver();
+
+        if (is_running && (advertiser == null || current_hash == null)) {
+            String saved_hash = shared_prefs.getString(SAVED_PASSWORD_HASH, null);
+            if (saved_hash != null && !saved_hash.isEmpty()) {
+                // Restore state and restart broadcasting
+                password = saved_hash;
+                current_hash = saved_hash;
+                if (bluetooth_adapter != null && bluetooth_adapter.isEnabled()) {
+                    advertiser = bluetooth_adapter.getBluetoothLeAdvertiser();
+                    if (advertiser != null) {
+                        start_adv_tasks();
+                    }
+                }
+            }
+        }
     }
 
     @Override
