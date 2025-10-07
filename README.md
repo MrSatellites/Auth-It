@@ -38,7 +38,7 @@ AuthIt is a revolutionary two-part authentication system that leverages **Blueto
 
 ### Hash Algorithm Flow
 1. **Initial Setup**: User sets password on Android app
-2. **Hash Generation**: SHA-512 hash with random salt (10,000+ iterations)
+2. **Hash Generation**: SHA-512 hash
 3. **Rolling Algorithm**: Hash combines: `previous_hash(20) + padding(108) + password_hash(128) + timestamp`
 4. **BLE Broadcasting**: First 20 characters broadcast via BLE service data
 5. **Linux Prediction**: Client predicts next hash based on received data and local password
